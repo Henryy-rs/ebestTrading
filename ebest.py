@@ -149,9 +149,9 @@ class InstXAQueryCSPAT00600(InstXAQuery):
         num_blocks = self.query.GetBlockCount(self.out_block_list[0])
         for i in range(num_blocks):
             order_list.append([])
-            order_list.append[i](self.query.GetFieldData(self.out_block_list[1], "OrdNo", i))   # 주문번호
-            order_list.append[i](self.query.GetFieldData(self.out_block_list[0], "OrdPrc", i))  # 주문가
-            order_list.append[i](self.query.GetFieldData(self.out_block_list[0], "BnsTpCode", i))  # 매매구분
+            order_list[i].append(self.query.GetFieldData(self.out_block_list[1], "OrdNo", i))   # 주문번호
+            order_list[i].append(self.query.GetFieldData(self.out_block_list[0], "OrdPrc", i))  # 주문가
+            order_list[i].append(self.query.GetFieldData(self.out_block_list[0], "BnsTpCode", i))  # 매매구분
 
         if num_blocks == 0:
             order_list = ["error: order failed"]
