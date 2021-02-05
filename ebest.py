@@ -33,9 +33,9 @@ class XAQueryEventHandler:
 class InstXASession:
     def __init__(self):
         self.session = win32com.client.DispatchWithEvents("XA_Session.XASession", XASessionEventHandler)
-        id = "" # 아이디
-        passwd = "" # 비밀번호
-        cert_passwd = ""    # 인증서 비밀번호
+        id = ""
+        passwd = ""
+        cert_passwd = ""
         self.session.ConnectServer("hts.ebestsec.co.kr", 20001)
         self.session.Login(id, passwd, cert_passwd, 0, 0)
 
@@ -60,7 +60,7 @@ class InstXAQuery:
         cls.in_block_list = []
         cls.out_block_list = []
 
-    def make_blocks(self, num_in_block=0, num_out_block=0):     # 전송블록, 수신블록
+    def make_blocks(self, num_in_block=0, num_out_block=0):     # 전송블록, 수신블록 생성
         if num_in_block == 0 and num_out_block == 0:
             self.in_block_list = ["%sInBlock" % self.tr_code].copy()
             self.out_block_list = ["%sOutBlock" % self.tr_code].copy()
@@ -118,24 +118,25 @@ class InstXAQueryCSPAT00600(InstXAQuery):
     def __init__(self):
         self.make_blocks(1, 2)
 
-    def send_order(self, account_number, account_pwd, ticker_code, amount, price, order_type, price_type="지정가"):
+    def send_order(self, account_number, account_pwd, ticker_code, order_quantity, order_price, order_type, price_type="지정가"):
         if order_type == "신규매수":
             sell_or_buy = 2
         elif order_type == "신규매도":
             sell_or_buy = 1
 
+        ready_to_send_query()
+
         if price_type == "지정가":
             manual_or_normal_price = "00"
+            self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, order_price)
         elif price_type == "시장가":
             manual_or_normal_price = "03"
-
-        ready_to_send_query()
+            self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, 0)
 
         self.query.SetFieldData(self.in_block_list[0], "AcntNo", 0, account_number)
         self.query.SetFieldData(self.in_block_list[0], "InptPwd", 0, account_pwd)
         self.query.SetFieldData(self.in_block_list[0], "IsuNo", 0, ticker_code)
-        self.query.SetFieldData(self.in_block_list[0], "OrdQty", 0, amount)
-        self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, price)
+        self.query.SetFieldData(self.in_block_list[0], "OrdQty", 0, order_quantity)
         self.query.SetFieldData(self.in_block_list[0], "BnsTpCode", 0, sell_or_buy)    # 매도(1), 매수(2)
         self.query.SetFieldData(self.in_block_list[0], "OrdprcPtnCode", 0, manual_or_normal_price)  # 호가유형코드
         self.query.SetFieldData(self.in_block_list[0], "MgntrnCode", 0, '000')  # 신용거래코드
@@ -145,28 +146,31 @@ class InstXAQueryCSPAT00600(InstXAQuery):
 
         ready_to_receive_query()
 
-        order_list = []
+        order_result_list = []
         num_blocks = self.query.GetBlockCount(self.out_block_list[0])
-        for i in range(num_blocks):
-            order_list.append([])
-            order_list[i].append(self.query.GetFieldData(self.out_block_list[1], "OrdNo", i))   # 주문번호
-            order_list[i].append(self.query.GetFieldData(self.out_block_list[0], "OrdPrc", i))  # 주문가
-            order_list[i].append(self.query.GetFieldData(self.out_block_list[0], "BnsTpCode", i))  # 매매구분
+        #for i in range(num_blocks):
+            #order_list.append([])
+        order_result_list.append(self.query.GetFieldData(self.out_block_list[1], "OrdNo", 0))   # 주문번호
+        order_time = self.query.GetFieldData(self.out_block_list[1], "OrdTime", 0)
+        order_time = order_time[0:2] + ":" + order_time[2:4] + ":" + order_time[4:6]
+        order_result_list.append(order_time)                                                    # 주문시각
+        order_result_list.append(self.query.GetFieldData(self.out_block_list[0], "IsuNo", 0))   # 종목번호
+        order_result_list.append(self.query.GetFieldData(self.out_block_list[0], "IsuNm", 0))   # 종목명
+        order_result_list.append(order_type[2:])                                                # 주문종류
+        order_result_list.append(self.query.GetFieldData(self.out_block_list[0], "OrdPrc", 0))  # 주문가
+        order_result_list.append(self.query.GetFieldData(self.out_block_list[0], "OrdQty", 0))  # 주문개수
 
         if num_blocks == 0:
-            order_list = ["error: order failed"]
-
-        print(order_list)
-        return order_list
+            return ["주문실패", order_result_list[1]]
+        return order_result_list
 
 
 class InstXAQueryT0424(InstXAQuery):
     def __init__(self):
         self.make_blocks(0, 1)
 
-    def get_account_balance(self, account_number, account_pwd):
+    def get_account_balance_info(self, account_number, account_pwd=""):
         ready_to_send_query()
-
         self.query.SetFieldData(self.in_block_list[0], "accno", 0, account_number)
         self.query.SetFieldData(self.in_block_list[0], "passwd", 0, account_pwd)
         self.query.SetFieldData(self.in_block_list[0], "prcgb", 0, 1)   # 단가구분: 평균단가(1), BEP단가(2)
@@ -184,15 +188,17 @@ class InstXAQueryT0424(InstXAQuery):
         account_info_list.append(self.query.GetFieldData(self.out_block_list[0], "sunamt1", 0))
         account_info_list.append(self.query.GetFieldData(self.out_block_list[0], "tappamt", 0))
         account_info_list.append(self.query.GetFieldData(self.out_block_list[0], "tdtsunik", 0))
-        account_info_list.append(str(round((int(account_info_list[0])/10000-1)*100, 3))+"%")    # 최초투자금 10000원
-
+        try:
+            account_info_list.append(str(round((int(account_info_list[0])/investment-1)*100, 3))+"%")    # 최초투자금 10000원
+        except ZeroDivisionError and ValueError:
+            account_info_list.append("----")
         return account_info_list
 
-    def get_holding_stocks(self, account_number, account_pwd):
+    def get_holding_stocks_info(self, account_number, account_pwd=""):
         ready_to_send_query()
 
         self.query.SetFieldData(self.in_block_list[0], "accno", 0, account_number)
-        self.query.SetFieldData(self.in_block_list[0], "passwd", 0, account_pwd)
+        self.query.SetFieldData(self.in_block_list[0], "passwd", 0, account_pwd)   # 비밀번호 없이 조회가능
         self.query.SetFieldData(self.in_block_list[0], "prcgb", 0, 1)  # 단가구분: 평균단가(1), BEP단가(2)
         self.query.SetFieldData(self.in_block_list[0], "chegb", 0, 0)  # 체결구분: 결제기준잔고(0), 체결기준잔고(2)
         self.query.SetFieldData(self.in_block_list[0], "dangb", 0, 0)  # 단일가구분: 정규장(0), 시장외단일가(1)
@@ -210,8 +216,120 @@ class InstXAQueryT0424(InstXAQuery):
             holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "expcode", i))
             holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "janqty", i))
             holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "mamt", i))
+            try:
+                holding_stocks_info_list[i].append(str(int(int(holding_stocks_info_list[i][3])/int(holding_stocks_info_list[i][2]))))
+            except ZeroDivisionError:
+                holding_stocks_info_list[i].append("0")
             holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "price", i))
             holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "dtsunik", i))
             holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "sunikrt", i))
 
         return holding_stocks_info_list
+
+
+class InstXAQueryT0425(InstXAQuery):
+    def __init__(self):
+        self.make_blocks(0, 1)
+
+    def get_order_info(self, account_number, is_concluded="0", account_pwd=""):
+        if is_concluded == "체결":
+            chegb = 1
+        elif is_concluded == "미체결":
+            chegb = 2
+        else:
+            chegb = 0
+
+        ready_to_send_query()
+
+        self.query.SetFieldData(self.in_block_list[0], "accno", 0, account_number)
+        self.query.SetFieldData(self.in_block_list[0], "passwd", 0, account_pwd)   # 비밀번호 없이 조회가능
+        self.query.SetFieldData(self.in_block_list[0], "expcode", 0, "")    # 종목코드: 없으면 전체 조회
+        self.query.SetFieldData(self.in_block_list[0], "chegb", 0, chegb)     # 체결구분: 전체(0), 체결(1), 미체결(2)
+        self.query.SetFieldData(self.in_block_list[0], "medosu", 0, "0")    # 매매구분: 매도(1), 매수(2)
+        self.query.SetFieldData(self.in_block_list[0], "sortgb", 0, "1")    # 정렬순서: 주문번호역순(1), 주문번호순(2)
+        self.query.SetFieldData(self.in_block_list[0], "cts_ordno", 0, "")  # 연속 조회시 사용
+        self.query.Request(False)
+
+        ready_to_receive_query()
+
+        order_info_list = []
+        num_blocks = self.query.GetBlockCount(self.out_block_list[1])
+        for i in range(num_blocks):
+            ordno = self.query.GetFieldData(self.out_block_list[1], "ordno", i)
+            expcode = self.query.GetFieldData(self.out_block_list[1], "expcode", i)
+            medosu = self.query.GetFieldData(self.out_block_list[1], "medosu", i)   # 매매구분
+            price = self.query.GetFieldData(self.out_block_list[1], "price", i)     # 주문가격
+            qty = self.query.GetFieldData(self.out_block_list[1], "qty", i)         # 주문수량
+            cheqty = self.query.GetFieldData(self.out_block_list[1], "cheqty", i)   # 체결수량
+            ordrem = self.query.GetFieldData(self.out_block_list[1], "ordrem", i)   # 미체결잔량
+            ordtime = self.query.GetFieldData(self.out_block_list[1], "ordtime", i) # 주문시간
+            ordtime = ordtime[0:2] + ":" + ordtime[2:4] + ":" + ordtime[4:6]
+            # dictionary
+            order_info = {"order_number": ordno, "ticker_code": expcode, "order_type": medosu, "price": price,
+                          "qty": qty, "cheqty": cheqty, "ordrem": ordrem, "order_time": ordtime}
+            order_info_list.append(order_info)
+
+        return order_info_list
+
+
+class InstXAQueryCSPAT00700(InstXAQuery):
+    def __init__(self):
+        self.make_blocks(1, 2)
+
+    def change_order(self, account_number, account_pwd, ticker_code, org_order_number, order_quantity, order_price, price_type="지정가"):
+        ready_to_send_query()
+
+        if price_type == "지정가":
+            manual_or_normal_price = "00"
+            self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, order_price)
+        elif price_type == "시장가":
+            manual_or_normal_price = "03"
+            self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, 0)
+
+        self.query.SetFieldData(self.in_block_list[0], "OrgOrdNo", 0, org_order_number)
+        self.query.SetFieldData(self.in_block_list[0], "AcntNo", 0, account_number)
+        self.query.SetFieldData(self.in_block_list[0], "InptPwd", 0, account_pwd)
+        self.query.SetFieldData(self.in_block_list[0], "IsuNo", 0, ticker_code)
+        self.query.SetFieldData(self.in_block_list[0], "OrdQty", 0, order_quantity)
+        self.query.SetFieldData(self.in_block_list[0], "OrdprcPtnCode", 0, manual_or_normal_price)  # 호가유형코드
+        self.query.SetFieldData(self.in_block_list[0], "OrdCndiTpCode", 0, '0')  # 주문조건구분
+        self.query.Request(False)
+
+        ready_to_receive_query()
+
+        order_result_list = []
+        order_result_list.append(self.query.GetFieldData(self.out_block_list[1], "OrdNo", 0))
+        order_time = self.query.GetFieldData(self.out_block_list[1], "OrdTime", 0)
+        order_time = order_time[0:2] + ":" + order_time[2:4] + ":" + order_time[4:6]
+        if order_result_list[0] == "0":
+            return ["주문실패", order_time]
+        order_result_list.append(order_time)
+        return order_result_list
+
+
+class InstXAQueryCSPAT00800(InstXAQuery):
+    def __init__(self):
+        self.make_blocks(1, 2)
+
+    def cancel_order(self, account_number, account_pwd, ticker_code, org_order_number, order_quantity):
+        ready_to_send_query()
+        
+        self.query.SetFieldData(self.in_block_list[0], "AcntNo", 0, account_number)
+        self.query.SetFieldData(self.in_block_list[0], "InptPwd", 0, account_pwd)
+        self.query.SetFieldData(self.in_block_list[0], "IsuNo", 0, ticker_code)
+        self.query.SetFieldData(self.in_block_list[0], "OrgOrdNo", 0, org_order_number)
+        self.query.SetFieldData(self.in_block_list[0], "OrdQty", 0, order_quantity)
+        self.query.Request(False)
+
+        ready_to_receive_query()
+
+        order_result_list = []
+        order_result_list.append(self.query.GetFieldData(self.out_block_list[1], "OrdNo", 0))
+        order_time = self.query.GetFieldData(self.out_block_list[1], "OrdTime", 0)
+        order_time = order_time[0:2] + ":" + order_time[2:4] + ":" + order_time[4:6]
+        if order_result_list[0] == "0":
+            return ["주문실패", order_time]
+        order_result_list.append(order_time)
+        return order_result_list
+
+investment = 10000
