@@ -6,6 +6,9 @@ ebest xing API를 이용한 트레이딩 프로그램에 대한 코드가 존재
 
 xingACE를 설치하고, DevCenter에서 모든 Res파일을 다운받으면 사용 가능하다.
 
+한글 폰트를 설정하지 않으면 pie graph에 한글이 깨진다.
+폰트 다운 후 설치된 matplotlib의 font폴더에 복사하고 matplotlib cashe폴더를 삭제한 후 실행하면 된다.
+
 
 # 현재 작동하는 기능
 
