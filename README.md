@@ -22,3 +22,8 @@ xingACE를 설치하고, DevCenter에서 모든 Res파일을 다운받으면 사
 - 주가정보조회
 - 포트폴리오그래프
 - ~~자동매매~~
+
+![balance](https://user-images.githubusercontent.com/28619620/107951843-4e2d1e00-6fdc-11eb-87f4-e03fe31e4c62.png)
+![order_list](https://user-images.githubusercontent.com/28619620/107951908-656c0b80-6fdc-11eb-84ae-4a8448b03dbe.png)
+![search](https://user-images.githubusercontent.com/28619620/107951986-7e74bc80-6fdc-11eb-8066-c60d2c2dc6a0.png)
+![porfolio](https://user-images.githubusercontent.com/28619620/107951955-7583eb00-6fdc-11eb-8eba-96cb39a00e3d.png)
