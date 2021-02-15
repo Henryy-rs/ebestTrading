@@ -1,12 +1,23 @@
-import sys
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5 import uic
-from ebest import *
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+from operator import itemgetter
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import pandas as pd
 import time
+import sys
+from ebest import *
+
 
 form_class = uic.loadUiType("PyTrader.ui")[0]
+
+
+def set_font(font_dir):
+    font_family = fm.FontProperties(fname=font_dir).get_name()
+    plt.rcParams["font.family"] = font_family
 
 
 class MyWindow(QMainWindow, form_class):
@@ -26,6 +37,8 @@ class MyWindow(QMainWindow, form_class):
 
         self.orderNumberLine.setDisabled(True)
 
+        # 클릭 이벤트
+
         self.tickerCodeLine.textChanged.connect(self.display_ticker_name)
         self.orderButton.clicked.connect(self.display_order_result)
         self.balanceInquiryButton.clicked.connect(self.display_account_balance_info)
@@ -34,9 +47,20 @@ class MyWindow(QMainWindow, form_class):
         self.unconOrderTableWidget.itemSelectionChanged.connect(self.one_click_set_correct_order)
         self.stocksTableWidget.itemSelectionChanged.connect(self.one_click_set_normal_order)
         self.realtimeCheckBox.stateChanged.connect(self.realtime_inquiry_checked)
+        self.portfolioInquiryButton.clicked.connect(self.display_portfolio)
 
         self.timer1 = QTimer(self)
         self.timer1.timeout.connect(self.display_account_balance_info)
+        
+        # 멤버 변수
+        self.account_info_list = []
+        self.holding_stocks_list = []
+
+        # 포트폴리오 파이그래프
+        self.fig = plt.Figure()
+        self.canvas = FigureCanvas(self.fig)
+        self.canvasLayout.addWidget(self.canvas)
+
 
     def display_account_code(self):
         self.accountNumberComboBox.addItems(self.instXASession.get_account_code())
@@ -66,51 +90,71 @@ class MyWindow(QMainWindow, form_class):
     def display_order_result(self):
         order_type = str(self.orderTypeComboBox.currentText())
         account_pwd = self.get_account_pwd_from_user()
+        status_bar_message = {}
         if order_type == "신규매수" or order_type == "신규매도":
             order_result_list = self.instXAQueryCSPAT00600.send_order(str(self.accountNumberComboBox.currentText()), str(account_pwd),
                                                                       str(self.tickerCodeLine.text()), int(self.tickerQuantitySpinBox.value()),
                                                                       int(self.tickerPriceSpinBox.value()), order_type,
                                                                       str(self.priceTypeComboBox.currentText()))
-
-            self.statusBar().showMessage("[주문종류: " + order_type + ", 주문번호: " + order_result_list[0] + ", 주문시각: " + order_result_list[1] + "]")
+            status_bar_message = {"주문종류": order_type, "주문번호": order_result_list[0], "주문시각": order_result_list[1]}
+            self.statusBar().showMessage(str(status_bar_message))
 
         elif order_type == "정정주문":
             order_result_list = self.instXAQueryCSPAT00700.change_order(str(self.accountNumberComboBox.currentText()), str(account_pwd),
                                                                         str(self.tickerCodeLine.text()), str(self.orderNumberLine.text()),
                                                                         int(self.tickerQuantitySpinBox.value()), int(self.tickerPriceSpinBox.value()),
                                                                         str(self.priceTypeComboBox.currentText()))
-            self.statusBar().showMessage("[주문종류: " + order_type + ", 주문번호: " + order_result_list[0] + ", 주문시각: " + order_result_list[1] + "]")
+            status_bar_message = {"주문종류": order_type, "주문번호": order_result_list[0], "주문시각": order_result_list[1]}
+            self.statusBar().showMessage(str(status_bar_message))
 
         elif order_type == "취소주문":
             order_result_list = self.instXAQueryCSPAT00800.cancel_order(str(self.accountNumberComboBox.currentText()), str(account_pwd),
                                                                    str(self.tickerCodeLine.text()), str(self.orderNumberLine.text()),
                                                                    int(self.tickerQuantitySpinBox.value()))
-            self.statusBar().showMessage("[주문종류: " + order_type + ", 주문번호: " + order_result_list[0] + ", 주문시각: " + order_result_list[1] + "]")
-
+            status_bar_message = {"주문종류": order_type, "주문번호": order_result_list[0], "주문시각": order_result_list[1]}
+            self.statusBar().showMessage(str(status_bar_message))
+        if status_bar_message["주문번호"] == "주문실패":
+            self.statusBar().setStyleSheet("background-color: #f06060")
+        else:
+            self.statusBar().setStyleSheet("background-color: #b0ffb7")
         time.sleep(0.2)
         self.display_account_balance_info()
         self.display_account_order_info()
+        time.sleep(0.5)
+        self.statusBar().setStyleSheet("background-color: #f4fff3")
 
     def display_account_balance_info(self):
         #account_pwd = self.get_account_pwd_from_user()
-        account_info_list = self.instXAQueryT0424.get_account_balance_info(str(self.accountNumberComboBox.currentText()))
-        len_of_list = len(account_info_list)
-        self.balanceTableWidget.setRowCount(1)  # 계좌가 1개라고 가정함
-
+        self.account_info_list = self.instXAQueryT0424.get_account_balance_info(str(self.accountNumberComboBox.currentText()))
+        len_of_list = len(self.account_info_list)
+        self.balanceTableWidget.setRowCount(len_of_list)  
+        
         for i in range(len_of_list):
-            info = QTableWidgetItem(account_info_list[i])
-            info.setTextAlignment(Qt.AlignCenter | Qt.AlignRight)
-            self.balanceTableWidget.setItem(0, i, info)
-
-        holding_stocks_list = self.instXAQueryT0424.get_holding_stocks_info(str(self.accountNumberComboBox.currentText()))
-        len_of_list = len(holding_stocks_list)
+            j = 0
+            for key in self.account_info_list[i]:
+                info = QTableWidgetItem(self.account_info_list[i][key])
+                info.setTextAlignment(Qt.AlignCenter | Qt.AlignRight)
+                self.balanceTableWidget.setItem(i, j, info)
+                j += 1
+                
+        # 계좌가 1개라고 가정 상태임
+    
+        self.holding_stocks_list = self.instXAQueryT0424.get_holding_stocks_info(str(self.accountNumberComboBox.currentText()))
+        len_of_list = len(self.holding_stocks_list)
         self.stocksTableWidget.setRowCount(len_of_list)
 
         for i in range(len_of_list):
-            for j in range(len(holding_stocks_list[i])):
-                info = QTableWidgetItem(holding_stocks_list[i][j])
+            j = 0
+            for key in self.holding_stocks_list[i]:
+                info = QTableWidgetItem(self.holding_stocks_list[i][key])
+                if key == "profit_rate":
+                    if float(info.text()) > 0:
+                        info.setForeground(QBrush(QColor(255, 0, 0)))
+                    elif float(info.text()) < 0:
+                        info.setForeground(QBrush(QColor(0, 0, 255)))
                 info.setTextAlignment(Qt.AlignCenter | Qt.AlignRight)
                 self.stocksTableWidget.setItem(i, j, info)
+                j += 1
 
     def display_account_order_info(self):
         # 마지막 파라미터는 체결 미체결 구분
@@ -181,6 +225,42 @@ class MyWindow(QMainWindow, form_class):
             self.timer1.start(1000 * 10)
         elif self.realtimeCheckBox.checkState() == 0:
             self.timer1.stop()
+
+    def display_portfolio(self):
+        total_estimated_amount = 0  # 모든 계좌의 추정순자산 합
+        stocks_to_be_drawn_list = []         # 그래프로 나타낼 주식들
+        if len(self.account_info_list) == 0:    # 계좌 데이터가 없을 경우 불러오기
+            self.display_account_balance_info()
+
+        for i in range(len(self.account_info_list)):
+            total_estimated_amount += int(self.account_info_list[i]["estimated_amount"])
+
+        self.totalAmountLabel.setText("[ 총자산 : " + str(total_estimated_amount) + "원 ]")
+
+        for i in range(len(self.holding_stocks_list)):
+            quantity = int(self.holding_stocks_list[i]["quantity"])
+            if quantity != 0:
+                estimated_amount = quantity * int(self.holding_stocks_list[i]["cur_price"])
+                total_estimated_amount -= estimated_amount
+                stocks_to_be_drawn = {"ticker_name": self.holding_stocks_list[i]["ticker_name"], "estimated_amount": estimated_amount}
+                stocks_to_be_drawn_list.append(stocks_to_be_drawn)
+        stocks_to_be_drawn_list.append({"ticker_name": "현금", "estimated_amount": total_estimated_amount})  # 주식을 제외한 보유 현금
+
+        stocks_to_be_drawn_list = sorted(stocks_to_be_drawn_list, key=itemgetter("estimated_amount", "ticker_name"), reverse=True)
+
+        ratio = []
+        labels = []
+        for i in range(len(stocks_to_be_drawn_list)):
+            ratio.append(stocks_to_be_drawn_list[i]["estimated_amount"])
+            labels.append(stocks_to_be_drawn_list[i]["ticker_name"])
+
+        colors = ['#ff9999', '#ffc000', '#dbff8b', '#8fd9b6', '#9ed0ff', '#d395d0', '#7f7bff']
+        self.fig.clear()
+        self.fig.add_subplot().pie(ratio, labels=labels, autopct='%.1f%%', startangle=260, counterclock=False,
+                                   colors=colors)
+        self.canvas.draw()
+
+        return
 
 
 if __name__ == "__main__":

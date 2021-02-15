@@ -161,7 +161,7 @@ class InstXAQueryCSPAT00600(InstXAQuery):
         order_result_list.append(self.query.GetFieldData(self.out_block_list[0], "OrdQty", 0))  # 주문개수
 
         if num_blocks == 0:
-            return ["주문실패", order_result_list[1]]
+            return ["주문실패", False]  # 주문 실패시 모든 주문 공통적으로 이 메세지 반환
         return order_result_list
 
 
@@ -182,16 +182,19 @@ class InstXAQueryT0424(InstXAQuery):
         ready_to_receive_query()
 
         account_info_list = []
-        account_info_list.append(self.query.GetFieldData(self.out_block_list[0], "sunamt", 0))
-        account_info_list.append(self.query.GetFieldData(self.out_block_list[0], "dtsunik", 0))
-        account_info_list.append(self.query.GetFieldData(self.out_block_list[0], "mamt", 0))
-        account_info_list.append(self.query.GetFieldData(self.out_block_list[0], "sunamt1", 0))
-        account_info_list.append(self.query.GetFieldData(self.out_block_list[0], "tappamt", 0))
-        account_info_list.append(self.query.GetFieldData(self.out_block_list[0], "tdtsunik", 0))
+        sunamt = self.query.GetFieldData(self.out_block_list[0], "sunamt", 0)       # 추정자산
+        dtsunik = self.query.GetFieldData(self.out_block_list[0], "dtsunik", 0)     # 실현손익(하루동안)
+        sunamt1 = self.query.GetFieldData(self.out_block_list[0], "sunamt1", 0)     # d2예수금
+        mamt = self.query.GetFieldData(self.out_block_list[0], "mamt", 0)           # 매입금액
+        tappamt = self.query.GetFieldData(self.out_block_list[0], "tappamt", 0)     # 평가금액
+        tdtsunik = self.query.GetFieldData(self.out_block_list[0], "tdtsunik", 0)   # 평가손익
         try:
-            account_info_list.append(str(round((int(account_info_list[0])/investment-1)*100, 3))+"%")    # 최초투자금 10000원
+            prftrt = str(round((int(sunamt)/investment-1)*100, 3))+"%"   # 손익률(investment: 투자금)
         except ZeroDivisionError and ValueError:
-            account_info_list.append("----")
+            prftrt = "----"
+        account_info = {"estimated_amount": sunamt, "realized_profit": dtsunik, "deposit_received": sunamt1,
+                        "pchs_amount": mamt, "eval_amount": tappamt, "eval_profit": tdtsunik, "profit_rate": prftrt}
+        account_info_list.append(account_info)
         return account_info_list
 
     def get_holding_stocks_info(self, account_number, account_pwd=""):
@@ -211,19 +214,21 @@ class InstXAQueryT0424(InstXAQuery):
         holding_stocks_info_list = []
         num_blocks = self.query.GetBlockCount(self.out_block_list[1])
         for i in range(num_blocks):
-            holding_stocks_info_list.append([])
-            holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "hname", i))
-            holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "expcode", i))
-            holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "janqty", i))
-            holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "mamt", i))
-            try:
-                holding_stocks_info_list[i].append(str(int(int(holding_stocks_info_list[i][3])/int(holding_stocks_info_list[i][2]))))
-            except ZeroDivisionError:
-                holding_stocks_info_list[i].append("0")
-            holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "price", i))
-            holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "dtsunik", i))
-            holding_stocks_info_list[i].append(self.query.GetFieldData(self.out_block_list[1], "sunikrt", i))
 
+            hname = self.query.GetFieldData(self.out_block_list[1], "hname", i)
+            expcode = self.query.GetFieldData(self.out_block_list[1], "expcode", i)
+            janqty = self.query.GetFieldData(self.out_block_list[1], "janqty", i)
+            mamt = self.query.GetFieldData(self.out_block_list[1], "mamt", i)
+            try:
+                avrgprice = str(int(int(mamt)/int(janqty)))
+            except ZeroDivisionError:
+                avrgprice = "0"
+            price = self.query.GetFieldData(self.out_block_list[1], "price", i)
+            dtsunik = self.query.GetFieldData(self.out_block_list[1], "dtsunik", i)
+            sunikrt = self.query.GetFieldData(self.out_block_list[1], "sunikrt", i)
+            stock_info = {"ticker_name": hname, "ticker_code": expcode, "quantity": janqty, "pchs_amount": mamt,
+                          "avrg_price": avrgprice, "cur_price": price, "profit": dtsunik, "profit_rate": sunikrt}
+            holding_stocks_info_list.append(stock_info)
         return holding_stocks_info_list
 
 
@@ -231,10 +236,10 @@ class InstXAQueryT0425(InstXAQuery):
     def __init__(self):
         self.make_blocks(0, 1)
 
-    def get_order_info(self, account_number, is_concluded="0", account_pwd=""):
-        if is_concluded == "체결":
+    def get_order_info(self, account_number, is_executed="0", account_pwd=""):
+        if is_executed == "체결":
             chegb = 1
-        elif is_concluded == "미체결":
+        elif is_executed == "미체결":
             chegb = 2
         else:
             chegb = 0
@@ -258,7 +263,11 @@ class InstXAQueryT0425(InstXAQuery):
             ordno = self.query.GetFieldData(self.out_block_list[1], "ordno", i)
             expcode = self.query.GetFieldData(self.out_block_list[1], "expcode", i)
             medosu = self.query.GetFieldData(self.out_block_list[1], "medosu", i)   # 매매구분
-            price = self.query.GetFieldData(self.out_block_list[1], "price", i)     # 주문가격
+            price = 0
+            if chegb == 1:
+                price = self.query.GetFieldData(self.out_block_list[1], "cheprice", i)     # 체결주문 조회시 체결가 표시
+            else:
+                price = self.query.GetFieldData(self.out_block_list[1], "price", i)  # 주문가격
             qty = self.query.GetFieldData(self.out_block_list[1], "qty", i)         # 주문수량
             cheqty = self.query.GetFieldData(self.out_block_list[1], "cheqty", i)   # 체결수량
             ordrem = self.query.GetFieldData(self.out_block_list[1], "ordrem", i)   # 미체결잔량
@@ -266,9 +275,10 @@ class InstXAQueryT0425(InstXAQuery):
             ordtime = ordtime[0:2] + ":" + ordtime[2:4] + ":" + ordtime[4:6]
             # dictionary
             order_info = {"order_number": ordno, "ticker_code": expcode, "order_type": medosu, "price": price,
-                          "qty": qty, "cheqty": cheqty, "ordrem": ordrem, "order_time": ordtime}
+                          "quantity": qty, "cheqty": cheqty, "ordrem": ordrem, "order_time": ordtime}
             order_info_list.append(order_info)
 
+        print(order_info_list)
         return order_info_list
 
 
@@ -302,7 +312,7 @@ class InstXAQueryCSPAT00700(InstXAQuery):
         order_time = self.query.GetFieldData(self.out_block_list[1], "OrdTime", 0)
         order_time = order_time[0:2] + ":" + order_time[2:4] + ":" + order_time[4:6]
         if order_result_list[0] == "0":
-            return ["주문실패", order_time]
+            return ["주문실패", False]
         order_result_list.append(order_time)
         return order_result_list
 
@@ -328,8 +338,8 @@ class InstXAQueryCSPAT00800(InstXAQuery):
         order_time = self.query.GetFieldData(self.out_block_list[1], "OrdTime", 0)
         order_time = order_time[0:2] + ":" + order_time[2:4] + ":" + order_time[4:6]
         if order_result_list[0] == "0":
-            return ["주문실패", order_time]
+            return ["주문실패", False]
         order_result_list.append(order_time)
         return order_result_list
 
-investment = 10000
+investment = 1000000
