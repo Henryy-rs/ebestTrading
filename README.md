@@ -27,8 +27,7 @@ xingACE를 설치하고, DevCenter에서 모든 Res파일을 다운받으면 사
 - 주문시 정상적으로 들어가면 statusbar에 초록불이 들어오고 아니면 빨간불이 들어옴
 
 ![image](https://user-images.githubusercontent.com/28619620/112286970-388fd000-8ccf-11eb-8d81-668d46f63a7a.png)
-![image](https://user-images.githubusercontent.com/28619620/112288644-e5b71800-8cd0-11eb-9933-7a9d59124a99.png)
-자동매도 실행중
+![image](https://user-images.githubusercontent.com/28619620/112288711-f8c9e800-8cd0-11eb-8ebb-1473ef231f6c.png)자동매도 실행중
 ![image](https://user-images.githubusercontent.com/28619620/112286670-e484eb80-8cce-11eb-9104-6215a2270604.png)
 ![image](https://user-images.githubusercontent.com/28619620/112286555-c7e8b380-8cce-11eb-9dbe-c9d43991da1b.png)
 ![image](https://user-images.githubusercontent.com/28619620/112286383-9cfe5f80-8cce-11eb-9bbb-989a06e99c2e.png)
