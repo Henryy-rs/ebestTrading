@@ -28,7 +28,7 @@ xingACE를 설치하고, DevCenter에서 모든 Res파일을 다운받으면 사
 - 보유주식목록이나 주문목록에서 tableWidget을 클릭하면 종목번호 혹은 주문번호를 자동으로 입력해줌
 - 주문시 정상적으로 들어가면 statusbar에 초록불이 들어오고 아니면 빨간불이 들어옴
 
-![balance](https://user-images.githubusercontent.com/28619620/107951843-4e2d1e00-6fdc-11eb-87f4-e03fe31e4c62.png)
-![order_list](https://user-images.githubusercontent.com/28619620/107951908-656c0b80-6fdc-11eb-84ae-4a8448b03dbe.png)
-![search](https://user-images.githubusercontent.com/28619620/107951986-7e74bc80-6fdc-11eb-8066-c60d2c2dc6a0.png)
-![porfolio](https://user-images.githubusercontent.com/28619620/107951955-7583eb00-6fdc-11eb-8eba-96cb39a00e3d.png)
+![image](https://user-images.githubusercontent.com/28619620/112286970-388fd000-8ccf-11eb-8d81-668d46f63a7a.png)
+![image](https://user-images.githubusercontent.com/28619620/112286670-e484eb80-8cce-11eb-9104-6215a2270604.png)
+![image](https://user-images.githubusercontent.com/28619620/112286555-c7e8b380-8cce-11eb-9dbe-c9d43991da1b.png)
+![image](https://user-images.githubusercontent.com/28619620/112286383-9cfe5f80-8cce-11eb-9bbb-989a06e99c2e.png)
