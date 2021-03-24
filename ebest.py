@@ -1,5 +1,10 @@
 import win32com.client
 import pythoncom
+import pandas as pd
+import datetime
+
+
+investment = 0
 
 
 def ready_to_send_query():
@@ -78,12 +83,12 @@ class InstXAQueryT1102(InstXAQuery):
     def __init__(self):
         self.make_blocks()
 
-    def get_name_of_ticker(self, ticker_code):
-        if len(ticker_code) != 6:
+    def get_name_of_ticker(self, stock_ticker):
+        if len(stock_ticker) != 6:
             return "유효하지 않은 코드"
 
         ready_to_send_query()
-        self.query.SetFieldData(self.in_block_list[0], "shcode", 0, ticker_code)
+        self.query.SetFieldData(self.in_block_list[0], "shcode", 0, stock_ticker)
         self.query.Request(False)
 
         ready_to_receive_query()
@@ -94,18 +99,36 @@ class InstXAQueryT1102(InstXAQuery):
         else:
             return received_message
 
-    def get_price_of_ticker(self, ticker_code):
-        if len(ticker_code) != 6:
+    def get_price_of_ticker(self, stock_ticker):
+        if len(stock_ticker) != 6:
             return 0
 
         ready_to_send_query()
 
-        self.query.SetFieldData(self.in_block_list[0], "shcode", 0, ticker_code)
+        self.query.SetFieldData(self.in_block_list[0], "shcode", 0, stock_ticker)
         self.query.Request(False)
 
         ready_to_receive_query()
 
         received_message = self.query.GetFieldData(self.out_block_list[0], "price", 0)
+
+        if received_message == "":
+            return 0
+        else:
+            return int(received_message)
+
+    def get_market_cap(self, stock_ticker):
+        if len(stock_ticker) != 6:
+            return 0
+
+        ready_to_send_query()
+
+        self.query.SetFieldData(self.in_block_list[0], "shcode", 0, stock_ticker)
+        self.query.Request(False)
+
+        ready_to_receive_query()
+
+        received_message = self.query.GetFieldData(self.out_block_list[0], "total", 0)
 
         if received_message == "":
             return 0
@@ -118,36 +141,49 @@ class InstXAQueryCSPAT00600(InstXAQuery):
     def __init__(self):
         self.make_blocks(1, 2)
 
-    def send_order(self, account_number, account_pwd, ticker_code, order_quantity, order_price, order_type, price_type="지정가"):
-        if order_type == "신규매수":
+    def send_order(self, account_number, account_pwd, stock_ticker, order_quantity, order_price, order_type, price_type="지정가", order_option=0):
+        if order_type == "신규매수" or order_type == "종가매수" or order_type == "단일가매수":
             sell_or_buy = 2
-        elif order_type == "신규매도":
+        elif order_type == "신규매도" or order_type == "종가매도" or order_type == "단일가매도":
             sell_or_buy = 1
 
         ready_to_send_query()
 
         if price_type == "지정가":
-            manual_or_normal_price = "00"
+            quote_type = "00"
             self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, order_price)
         elif price_type == "시장가":
-            manual_or_normal_price = "03"
+            quote_type = "03"
             self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, 0)
-
+        elif price_type == "종가":
+            now = datetime.datetime.now()
+            if 8 < now.hour < 9:
+                quote_type = "61"
+            else:
+                quote_type = "81"
+            self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, 0)
+        elif price_type == "단일가":
+            quote_type = "82"
+            self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, order_price)
+        elif price_type == "최유리지정가":
+            quote_type = "06"
+            self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, 0)
         self.query.SetFieldData(self.in_block_list[0], "AcntNo", 0, account_number)
         self.query.SetFieldData(self.in_block_list[0], "InptPwd", 0, account_pwd)
-        self.query.SetFieldData(self.in_block_list[0], "IsuNo", 0, ticker_code)
+        self.query.SetFieldData(self.in_block_list[0], "IsuNo", 0, stock_ticker)
         self.query.SetFieldData(self.in_block_list[0], "OrdQty", 0, order_quantity)
         self.query.SetFieldData(self.in_block_list[0], "BnsTpCode", 0, sell_or_buy)    # 매도(1), 매수(2)
-        self.query.SetFieldData(self.in_block_list[0], "OrdprcPtnCode", 0, manual_or_normal_price)  # 호가유형코드
+        self.query.SetFieldData(self.in_block_list[0], "OrdprcPtnCode", 0, quote_type)  # 호가유형코드
         self.query.SetFieldData(self.in_block_list[0], "MgntrnCode", 0, '000')  # 신용거래코드
         self.query.SetFieldData(self.in_block_list[0], "LoanDt", 0, '0')  # 대출일
-        self.query.SetFieldData(self.in_block_list[0], "OrdCndiTpCode", 0, '0')  # 주문조건구분
+        self.query.SetFieldData(self.in_block_list[0], "OrdCndiTpCode", 0, order_option)  # 주문조건구분
         self.query.Request(False)
 
         ready_to_receive_query()
 
         order_result_list = []
         num_blocks = self.query.GetBlockCount(self.out_block_list[0])
+        print(num_blocks)
         #for i in range(num_blocks):
             #order_list.append([])
         order_result_list.append(self.query.GetFieldData(self.out_block_list[1], "OrdNo", 0))   # 주문번호
@@ -188,6 +224,7 @@ class InstXAQueryT0424(InstXAQuery):
         mamt = self.query.GetFieldData(self.out_block_list[0], "mamt", 0)           # 매입금액
         tappamt = self.query.GetFieldData(self.out_block_list[0], "tappamt", 0)     # 평가금액
         tdtsunik = self.query.GetFieldData(self.out_block_list[0], "tdtsunik", 0)   # 평가손익
+        
         try:
             prftrt = str(round((int(sunamt)/investment-1)*100, 3))+"%"   # 손익률(investment: 투자금)
         except ZeroDivisionError and ValueError:
@@ -218,6 +255,8 @@ class InstXAQueryT0424(InstXAQuery):
             hname = self.query.GetFieldData(self.out_block_list[1], "hname", i)
             expcode = self.query.GetFieldData(self.out_block_list[1], "expcode", i)
             janqty = self.query.GetFieldData(self.out_block_list[1], "janqty", i)
+            if int(janqty) == 0:
+                continue
             mamt = self.query.GetFieldData(self.out_block_list[1], "mamt", i)
             try:
                 avrgprice = str(int(int(mamt)/int(janqty)))
@@ -226,7 +265,7 @@ class InstXAQueryT0424(InstXAQuery):
             price = self.query.GetFieldData(self.out_block_list[1], "price", i)
             dtsunik = self.query.GetFieldData(self.out_block_list[1], "dtsunik", i)
             sunikrt = self.query.GetFieldData(self.out_block_list[1], "sunikrt", i)
-            stock_info = {"ticker_name": hname, "ticker_code": expcode, "quantity": janqty, "pchs_amount": mamt,
+            stock_info = {"stock_name": hname, "stock_ticker": expcode, "quantity": janqty, "pchs_amount": mamt,
                           "avrg_price": avrgprice, "cur_price": price, "profit": dtsunik, "profit_rate": sunikrt}
             holding_stocks_info_list.append(stock_info)
         return holding_stocks_info_list
@@ -274,11 +313,10 @@ class InstXAQueryT0425(InstXAQuery):
             ordtime = self.query.GetFieldData(self.out_block_list[1], "ordtime", i) # 주문시간
             ordtime = ordtime[0:2] + ":" + ordtime[2:4] + ":" + ordtime[4:6]
             # dictionary
-            order_info = {"order_number": ordno, "ticker_code": expcode, "order_type": medosu, "price": price,
+            order_info = {"order_number": ordno, "stock_ticker": expcode, "order_type": medosu, "price": price,
                           "quantity": qty, "cheqty": cheqty, "ordrem": ordrem, "order_time": ordtime}
             order_info_list.append(order_info)
 
-        print(order_info_list)
         return order_info_list
 
 
@@ -286,22 +324,30 @@ class InstXAQueryCSPAT00700(InstXAQuery):
     def __init__(self):
         self.make_blocks(1, 2)
 
-    def change_order(self, account_number, account_pwd, ticker_code, org_order_number, order_quantity, order_price, price_type="지정가"):
+    def change_order(self, account_number, account_pwd, stock_ticker, org_order_number, order_quantity, order_price, price_type="지정가"):
         ready_to_send_query()
 
         if price_type == "지정가":
-            manual_or_normal_price = "00"
+            quote_type = "00"
             self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, order_price)
         elif price_type == "시장가":
-            manual_or_normal_price = "03"
+            quote_type = "03"
             self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, 0)
+        elif price_type == "종가":
+            quote_type = "81"
+            self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, 0)
+        elif price_type == "단일가":
+            quote_type = "82"
+            self.query.SetFieldData(self.in_block_list[0], "OrdPrc", 0, order_price)
+
+
 
         self.query.SetFieldData(self.in_block_list[0], "OrgOrdNo", 0, org_order_number)
         self.query.SetFieldData(self.in_block_list[0], "AcntNo", 0, account_number)
         self.query.SetFieldData(self.in_block_list[0], "InptPwd", 0, account_pwd)
-        self.query.SetFieldData(self.in_block_list[0], "IsuNo", 0, ticker_code)
+        self.query.SetFieldData(self.in_block_list[0], "IsuNo", 0, stock_ticker)
         self.query.SetFieldData(self.in_block_list[0], "OrdQty", 0, order_quantity)
-        self.query.SetFieldData(self.in_block_list[0], "OrdprcPtnCode", 0, manual_or_normal_price)  # 호가유형코드
+        self.query.SetFieldData(self.in_block_list[0], "OrdprcPtnCode", 0, quote_type)  # 호가유형코드
         self.query.SetFieldData(self.in_block_list[0], "OrdCndiTpCode", 0, '0')  # 주문조건구분
         self.query.Request(False)
 
@@ -321,12 +367,12 @@ class InstXAQueryCSPAT00800(InstXAQuery):
     def __init__(self):
         self.make_blocks(1, 2)
 
-    def cancel_order(self, account_number, account_pwd, ticker_code, org_order_number, order_quantity):
+    def cancel_order(self, account_number, account_pwd, stock_ticker, org_order_number, order_quantity):
         ready_to_send_query()
         
         self.query.SetFieldData(self.in_block_list[0], "AcntNo", 0, account_number)
         self.query.SetFieldData(self.in_block_list[0], "InptPwd", 0, account_pwd)
-        self.query.SetFieldData(self.in_block_list[0], "IsuNo", 0, ticker_code)
+        self.query.SetFieldData(self.in_block_list[0], "IsuNo", 0, stock_ticker)
         self.query.SetFieldData(self.in_block_list[0], "OrgOrdNo", 0, org_order_number)
         self.query.SetFieldData(self.in_block_list[0], "OrdQty", 0, order_quantity)
         self.query.Request(False)
@@ -342,4 +388,76 @@ class InstXAQueryCSPAT00800(InstXAQuery):
         order_result_list.append(order_time)
         return order_result_list
 
-investment = 1000000
+
+# 주문가능금액 조회
+class InstXAQueryCSPAQ12200(InstXAQuery):
+    def __init__(self):
+        self.make_blocks(1, 2)
+
+    def get_amount_available_to_order(self, account_number, account_pwd=""):
+        ready_to_send_query()
+
+        self.query.SetFieldData(self.in_block_list[0], "RecCnt", 0, 1)
+        self.query.SetFieldData(self.in_block_list[0], "AcntNo", 0, account_number)
+        self.query.SetFieldData(self.in_block_list[0], "Pwd", 0, account_pwd)
+        self.query.SetFieldData(self.in_block_list[0], "BalCreTp", 0, 0)
+        self.query.SetFieldData(self.in_block_list[0], "MgmtBrnNo", 0, "")
+        self.query.Request(False)
+
+        ready_to_receive_query()
+
+        return self.query.GetFieldData(self.out_block_list[1], "MnyOrdAbleAmt", 0)
+
+
+class InstXAQueryT8430(InstXAQuery):
+    def __init__(self):
+        self.make_blocks()
+
+    def get_all_stock_tickers(self):
+        ready_to_send_query()
+        self.query.SetFieldData(self.in_block_list[0], "gubun", 0, 0)
+        self.query.Request(False)
+
+        ready_to_receive_query()
+
+        stock_ticker_list = []
+        num_blocks = self.query.GetBlockCount(self.out_block_list[0])
+
+        for i in range(num_blocks):
+            shcode = self.query.GetFieldData(self.out_block_list[0], "shcode", i)
+            hname = self.query.GetFieldData(self.out_block_list[0], "hname", i)
+            stock_ticker = {"ticker": shcode, "name": hname}
+            stock_ticker_list.append(stock_ticker)
+
+        return pd.DataFrame(stock_ticker_list)
+
+
+class InstXAQueryT8413(InstXAQuery):
+    def __init__(self):
+        self.make_blocks(0, 1)
+
+    def get_chart_data(self, stock_ticker, quantity, end_date, start_date="", day_week_month=2):
+        ready_to_send_query()
+        self.query.SetFieldData(self.in_block_list[0], "shcode", 0, stock_ticker)
+        self.query.SetFieldData(self.in_block_list[0], "gubun", 0, day_week_month)
+        self.query.SetFieldData(self.in_block_list[0], "qrycnt", 0, quantity)
+        self.query.SetFieldData(self.in_block_list[0], "sdate", 0, start_date)
+        self.query.SetFieldData(self.in_block_list[0], "edate", 0, end_date)
+        self.query.SetFieldData(self.in_block_list[0], "cts_date", 0, "")
+        self.query.SetFieldData(self.in_block_list[0], "comp_yn", 0, "N")
+        self.query.Request(False)
+
+        ready_to_receive_query()
+
+        chart_data_list = []
+        for i in range(quantity):
+            date = self.query.GetFieldData(self.out_block_list[1], "date", i)
+            open_price = self.query.GetFieldData(self.out_block_list[1], "open", i)
+            high_price = self.query.GetFieldData(self.out_block_list[1], "high", i)
+            low_price = self.query.GetFieldData(self.out_block_list[1], "low", i)
+            close_price = self.query.GetFieldData(self.out_block_list[1], "close", i)
+            volume = self.query.GetFieldData(self.out_block_list[1], "jdiff_vol", i)
+            chart_data = {"date": date, "open_price": open_price, "high_price": high_price, "low_price": low_price,
+                          "close_price": close_price, "volume": volume}
+            chart_data_list.append(chart_data)
+        return  pd.DataFrame(chart_data_list)
