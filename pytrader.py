@@ -62,6 +62,10 @@ class MyWindow(QMainWindow, form_class):
         super().__init__()
         self.setupUi(self)
         self.instXASession = InstXASession()
+        id = 0 #your id
+        passwd = 0 #your pw 
+        cert_passwd = 0 #your pw
+        self.instXASession.login(id, passwd, cert_passwd)
         self.display_account_code()
 
         # 쿼리 객체 만들기
@@ -164,7 +168,7 @@ class MyWindow(QMainWindow, form_class):
 
     def display_stock_name(self):
         stock_ticker = self.stockTickerLine.text()
-        self.stockNameLine.setText(self.instXAQueryT1102.get_name_of_ticker(stock_ticker))
+        self.stockNameLine.setText(self.instXAQueryT1102.get_ticker_symbol(stock_ticker))
         self.tickerPriceSpinBox.setValue(self.instXAQueryT1102.get_price_of_ticker(stock_ticker))
         if self.tickerPriceSpinBox.value() != 0:
             self.tickerQuantitySpinBox.setValue(1)
@@ -359,7 +363,7 @@ class MyWindow(QMainWindow, form_class):
 
     def activate_auto_seller(self):
         now = datetime.datetime.now()
-        if now.hour < 9 or (now.hour >= 15 and now.minute >= 20) or now.hour > 15:
+        if (now.hour < 9 or (now.hour >= 15 and now.minute >= 20) or now.hour > 15 )and 0:
             self.statusBar().setStyleSheet("background-color: #f06060")
             self.statusBar().showMessage("자동매매 가능 시간이 아닙니다. 현재시각: " + str(now.hour) + "시 " + str(now.minute)+ "분 " + str(now.second) + "초")
             time.sleep(0.5)
@@ -396,7 +400,16 @@ class MyWindow(QMainWindow, form_class):
 
 
 if __name__ == "__main__":
+    font_dir_list = []
+    font_dir_list.append('C:/Users/user/PycharmProjects/EbestBest/NanumFontSetup_TTF_GOTHIC/NanumGothic.ttf')
+    font_dir_list.append('C:/Users/user/PycharmProjects/EbestBest/NanumFontSetup_TTF_BARUNPEN/NanumBarunpenR.ttf')
+    set_font(font_dir_list[0])
     app = QApplication(sys.argv)
+    fontDB = QFontDatabase()
+    fontDB.addApplicationFont(font_dir_list[0])
+    font = QFont('NanumGothic')
+    font.setPointSize(9)
+    app.setFont(font)
     myWindow = MyWindow()
     myWindow.show()
     app.exec_()

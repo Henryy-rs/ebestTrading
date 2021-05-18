@@ -2,9 +2,7 @@ import win32com.client
 import pythoncom
 import pandas as pd
 import datetime
-
-
-investment = 0
+import time
 
 
 def ready_to_send_query():
@@ -12,7 +10,8 @@ def ready_to_send_query():
 
 
 def ready_to_receive_query():
-    while XAQueryEventHandler.query_state == 0:
+    t_end = time.time() + 2
+    while XAQueryEventHandler.query_state == 0 and time.time() < t_end:
         pythoncom.PumpWaitingMessages()
 
 
@@ -38,14 +37,15 @@ class XAQueryEventHandler:
 class InstXASession:
     def __init__(self):
         self.session = win32com.client.DispatchWithEvents("XA_Session.XASession", XASessionEventHandler)
-        id = ""
-        passwd = ""
-        cert_passwd = ""
+
+    def login(self, id, passwd, cert_passwd):
         self.session.ConnectServer("hts.ebestsec.co.kr", 20001)
         self.session.Login(id, passwd, cert_passwd, 0, 0)
-
-        while XASessionEventHandler.login_state == 0:
+        t_end = time.time() + 2
+        while XASessionEventHandler.login_state == 0 and time.time() < t_end:
             pythoncom.PumpWaitingMessages()
+        return XASessionEventHandler.login_state
+
 
     def get_account_code(self):
         account_list = []
@@ -83,7 +83,7 @@ class InstXAQueryT1102(InstXAQuery):
     def __init__(self):
         self.make_blocks()
 
-    def get_name_of_ticker(self, stock_ticker):
+    def get_ticker_symbol(self, stock_ticker):
         if len(stock_ticker) != 6:
             return "유효하지 않은 코드"
 
@@ -460,4 +460,6 @@ class InstXAQueryT8413(InstXAQuery):
             chart_data = {"date": date, "open_price": open_price, "high_price": high_price, "low_price": low_price,
                           "close_price": close_price, "volume": volume}
             chart_data_list.append(chart_data)
-        return  pd.DataFrame(chart_data_list)
+        return pd.DataFrame(chart_data_list)
+
+investment = 1500000
